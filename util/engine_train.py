@@ -23,11 +23,10 @@ import util.misc as misc
 import matplotlib.pyplot as plt
 
 
-criterion = torch.nn.BCELoss() 
-
 def train_one_epoch(model: torch.nn.Module,
                     data_loader: Iterable, 
-                    optimizer: torch.optim.Optimizer, #, criterion: torch. 
+                    optimizer: torch.optim.Optimizer, 
+                    criterion,
                     device: torch.device, epoch: int,
                     # loss_scaler,
                     # log_writer=None,
@@ -62,7 +61,7 @@ def train_one_epoch(model: torch.nn.Module,
 
 
 @torch.no_grad()
-def evaluate(model, data_loader, device, epoch, log_writer=None, args=None):
+def evaluate(model, data_loader, criterion, device, epoch, log_writer=None, args=None):
     model.eval()
 
     cumu_loss = 0

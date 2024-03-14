@@ -190,11 +190,6 @@ def main(args):
     model = models.__dict__[args.model](
         n_channels=args.input_electrodes, 
         input_time_length=args.time_steps, 
-        # n_filters=args.n_filters,         # in konkreten Modellen definiert
-        # filter_time_length=args.filter_time_length, 
-        # pool_time_length=args.pool_time_length, 
-        # pool_time_stride=args.pool_time_stride,
-        # n_classes=args.n_classes, 
     )
 
     model.to(device)
@@ -202,7 +197,20 @@ def main(args):
     # eval_criterion = "bce"
     # criterion = nn.BCELoss()  # !!!! 
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.95))
+    criterion = torch.nn.BCELoss() 
+
+
+    if optimizer == "sgd":
+        optimizer = optim.SGD(model.parameters(),
+                              lr=args.lr, momentum=0.9)
+    elif optimizer == "adam":
+        optimizer = optim.Adam(model.parameters(),
+                               lr=args.lr)
+    elif optimizer == "adamw": 
+        optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.95))
+
+    else: 
+        print("Attention: No optimier chosen.")
 
     # Define callbacks
     early_stop = EarlyStop(patience=args.patience, max_delta=args.max_delta)
@@ -213,10 +221,10 @@ def main(args):
     for epoch in range(args.epochs): 
         # start_time = time.time()
         
-        mean_loss_epoch_train = train_one_epoch(model, data_loader_train, optimizer, device, epoch, args=args) #loss_scaler, criterion
+        mean_loss_epoch_train = train_one_epoch(model, data_loader_train, optimizer, criterion, device, epoch, args=args) #loss_scaler, criterion
         print(f"Loss / BCE on {len(dataset_train)} train samples: {mean_loss_epoch_train}")
 
-        mean_loss_epoch_val = evaluate(model, data_loader_val, device, epoch, args=args) 
+        mean_loss_epoch_val = evaluate(model, data_loader_val, criterion, device, epoch, args=args) 
         print(f"Loss / BCE on {len(dataset_val)} val samples: {mean_loss_epoch_val}")
     
         

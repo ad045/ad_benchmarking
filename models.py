@@ -25,7 +25,7 @@ class SimpleClassifierNN(nn.Module):
         return x
 
 
-class InspiredEEGNet(nn.Module): # inspired by Shallow ConvNet model from Schirrmeister et al 2017.
+class InspiredEEGNet(nn.Module): # Schirrmeister et al 2017.
     def __init__(self, n_channels, n_classes, input_time_length, n_filters=40, filter_time_length=25, pool_time_length=75, pool_time_stride=15, drop_prob=0.5):
         super(InspiredEEGNet, self).__init__()
         
@@ -61,6 +61,52 @@ class InspiredEEGNet(nn.Module): # inspired by Shallow ConvNet model from Schirr
 
         return F.log_softmax(x, dim=1) # x
 
+
+
+class DeepConvNet(nn.Module): # Schirrmeister et al 2017.
+    def __init__(self, n_channels, input_time_length, n_classes=1):
+    
+        super(ShallowConvNet, self).__init__()
+        
+        n_filters = 25
+        filter_time_length = 10
+        pool_time_length = 3
+        pool_time_stride = 3
+
+        self.temporal_conv = nn.Conv2d(n_channels, n_filters, (1, filter_time_length), padding='valid') # same')
+        self.spatial_conv = nn.Conv2d(n_filters, n_filters, (n_channels, n_filters), padding='same') #, bias=False) 
+        self.pooling = nn.MaxPool2d((1, pool_time_length), stride=(pool_time_stride,1)) 
+        # self.log_nonlin = nn.LogSigmoid() # "A log non-linearity >> is this wat is meant by that? or a true log fctn?"
+        self.conv_2 = nn.Conv2d(n_filters, n_filters, (n_filters, 10), padding='valid') #same') #, bias=False) 
+        self.pool_2 = nn.MaxPool2d((1, pool_time_length), stride=(pool_time_stride,1)) 
+        
+        self.conv_3 = nn.Conv2d(n_filters, n_filters, (n_channels, n_filters), padding='same') #, bias=False) 
+        self.pool_3 = nn.MaxPool2d((1, pool_time_length), stride=(pool_time_stride,1)) 
+        
+        self.conv_4 = nn.Conv2d(n_filters, n_filters, (n_channels, n_filters), padding='same') #, bias=False) 
+        self.pool_4 = nn.MaxPool2d((1, pool_time_length), stride=(pool_time_stride,1)) 
+        
+        self.elu = nn.ELU()
+        
+        self.flatten = nn.Flatten() 
+        last_layer_time_length = int(((input_time_length-filter_time_length+1)-75+pool_time_stride+1)/pool_time_stride+1) # IS THAT CORRECT? 
+        self.linear_classification = nn.Linear(last_layer_time_length*40, n_classes)
+        self.final_activation = nn.Sigmoid() # in Braindecode Paper a Softmax
+
+    def forward(self, x):
+        x = x.unsqueeze(1).permute(0,2,1,3)
+        x = self.temporal_conv(x)
+        x = self.spatial_conv(x)  
+        x = torch.square(x) # ? 
+
+        x = self.pooling(x)
+        x = self.flatten(x) 
+        x = torch.log(x)    # ?
+
+        x = self.linear_classification(x)
+        x = self.final_activation(x)
+        return x 
+    
 
 class ShallowConvNet(nn.Module): # inspired by Shallow ConvNet model from Schirrmeister et al 2017.
     def __init__(self, n_channels, input_time_length, n_classes=1, n_filters=40, filter_time_length=25, pool_time_length=75, pool_time_stride=15): #, drop_prob=0.5):
