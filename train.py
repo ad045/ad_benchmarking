@@ -19,7 +19,7 @@ plt.style.use('dark_background')
 import models as models
 
 import wandb
-from os import Path
+# from os import Path
 
 import models 
 import datasets
@@ -28,13 +28,14 @@ import dataset
 import numpy as np
 import time as time 
 import util.misc as misc
-from util.misc import NativeScalerWithGradNormCount as NativeScaler
+# from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.callbacks import EarlyStop
 
-from engine_train import train_one_epoch, evaluate # evaluate_online
+from util.engine_train import train_one_epoch, evaluate # evaluate_online
 
 
 wandb.login()
+
 
 def get_args_parser():
     parser = argparse.ArgumentParser("NN training")
@@ -51,8 +52,10 @@ def get_args_parser():
                         help='input channels')
     parser.add_argument('--input_electrodes', type=int, default=61, metavar='N',
                         help='input electrodes')
-    parser.add_argument('--time_steps', type=int, default=200, metavar='N',
+    parser.add_argument('--time_steps', type=int, default=100, metavar='N',
                         help='input length')
+    # parser.add_argument('--length_samples', default=200, 
+    #                     help='length of samples') 
 
     # Optimizer parameters
     parser.add_argument('--optimizer', type=str, default="adam_w", 
@@ -68,18 +71,32 @@ def get_args_parser():
 
 
     # Dataset parameters
-    parser.add_argument('--data_path', default='_.pt', type=str,
+    parser.add_argument('--data_path', 
+                        # default='_.pt',
+                        default="/vol/aimspace/users/dena/Documents/mae/data/lemon/data_raw_train.pt",
+                        type=str,
                         help='train dataset path')
-    parser.add_argument('--labels_path', default='_.pt', type=str,
+
+    parser.add_argument('--labels_path', 
+                        # default='_.pt', 
+                        default="/vol/aimspace/users/dena/Documents/ad_benchmarking/ad_benchmarking/data/labels_bin_train.pt", #labels_raw_train.pt",
+                        type=str,
                         help='train labels path')
-    parser.add_argument('--val_data_path', default='', type=str,
+    parser.add_argument('--val_data_path', 
+                        # default='', 
+                        default="/vol/aimspace/users/dena/Documents/mae/data/lemon/data_raw_val.pt",
+                        type=str,
                         help='validation dataset path')
-    parser.add_argument('--val_labels_path', default='_.pt', type=str,
+    parser.add_argument('--val_labels_path', 
+                        # default='_.pt', 
+                        default="/vol/aimspace/users/dena/Documents/ad_benchmarking/ad_benchmarking/data/labels_bin_val.pt", # "labels_raw_val.pt"
+                        type=str,
                         help='validation labels path')
-    parser.add_argument('--number_samples', default=None, type=int | str, 
+    parser.add_argument('--number_samples', default=1, type=int, # | str, 
                         help='number of samples on which network should train on. "None" means all samples.')
-    parser.add_argument('--length_samples', default=200, 
-                        help='length of samples') 
+    parser.add_argument('--num_workers', default=4, type=int, # | str, 
+                        help='number workers for dataloader.')
+    
     
     # Wandb parameters
     parser.add_argument('--wandb', action='store_true', default=False)
@@ -116,7 +133,6 @@ def get_args_parser():
 
 
 def main(args): 
-    # args.input_size = (args.input_channels, args.input_electrodes, args.time_steps)
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
@@ -124,24 +140,16 @@ def main(args):
     device = torch.device(args.device)
 
     # Fix the seed for reproducibility
-    seed = args.seed + misc.get_rank()
+    seed = args.seed 
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    # cudnn.benchmark = True # selects the best out of multiple CNNs
-
-    # # Load data     
-    # def __init__(self, data_path, labels_path, # downstream_task=None, 
-    #              train=False, number_samples=None, length_samples=200,  args=None) -> None:
-    #     """load data and labels from files"""
-        
     dataset_train = dataset.EEGDataset(data_path=args.data_path, labels_path=args.labels_path, 
-                               train=True, number_samples=args.number_samples, length_samples=args.length_samples,
+                               train=True, number_samples=args.number_samples, length_samples=args.time_steps,
                                args=args)
     dataset_val = dataset.EEGDataset(data_path=args.data_path, labels_path=args.labels_path, 
-                               train=True, number_samples=args.number_samples, length_samples=args.length_samples,
+                               train=True, number_samples=args.number_samples, length_samples=args.time_steps,
                                args=args)
-
 
     print("Training set size: ", len(dataset_train))
     print("Validation set size: ", len(dataset_val))
@@ -149,13 +157,15 @@ def main(args):
     sampler_val = torch.utils.data.SequentialSampler(dataset_val)
     sampler_train = torch.utils.data.RandomSampler(dataset_train) 
 
-    # wandb logging
-    if args.wandb == True:
-        config = vars(args)
-        if args.wandb_id:
-            wandb.init(project=args.wandb_project, id=args.wandb_id, config=config)
-        else:
-            wandb.init(project=args.wandb_project, config=config)
+    # # wandb logging
+    # if args.wandb == True:
+    #     config = vars(args)
+    #     if args.wandb_id:
+    #         wandb.init(project=args.wandb_project, id=args.wandb_id, config=config)
+    #     else:
+    #         wandb.init(project=args.wandb_project, config=config)
+
+    wandb.init(project=args.wandb_project, config=vars(args))
 
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, 
@@ -163,7 +173,7 @@ def main(args):
         # shuffle=True,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
+        # pin_memory=args.pin_mem,
         drop_last=False,
     )
 
@@ -173,7 +183,7 @@ def main(args):
         # shuffle=False,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
+        # pin_memory=args.pin_mem,
         drop_last=False,
     )
 
@@ -187,24 +197,12 @@ def main(args):
         # n_classes=args.n_classes, 
     )
 
-    models.to(device)
+    model.to(device)
 
-    # n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    # n_params_encoder = sum(p.numel() for n, p in model.named_parameters() if p.requires_grad and "decoder" not in n)
-    # n_params_decoder = sum(p.numel() for n, p in model.named_parameters() if p.requires_grad and "decoder" in n)
+    # eval_criterion = "bce"
+    # criterion = nn.BCELoss()  # !!!! 
 
-    # print("Model = %s" % str(model_without_ddp))
-    # print('Number of params (M): %.2f' % (n_parameters / 1.e6))
-    # print('Number of encoder params (M): %.2f' % (n_params_encoder / 1.e6))
-    # print('Number of decoder params (M): %.2f' % (n_params_decoder / 1.e6))
-    eval_criterion = "bce"
-    criterion = nn.BCELoss()  
-#     optimizer = optim.AdamW(model.parameters(), lr=h_params["lr"])
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.95)) # param_groups
-    print(optimizer)
-    # loss_scaler = NativeScaler()
-    # misc.load_model(args=args, model_without_ddp=model, optimizer=optimizer, loss_scaler=loss_scaler)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.95))
 
     # Define callbacks
     early_stop = EarlyStop(patience=args.patience, max_delta=args.max_delta)
@@ -212,75 +210,30 @@ def main(args):
     print(f"Start training for {args.epochs} epochs")
 
 
-    # best_stats = {'loss':np.inf, 'acc':0.0}
-    # best_eval_scores = {'count':0, 'nb_ckpts_max':5, 'eval_criterion':[best_stats[eval_criterion]]}
-    for epoch in range(args.start_epoch, args.epochs):
-        start_time = time.time()
+    for epoch in range(args.epochs): 
+        # start_time = time.time()
         
-        mean_loss_epoch = train_one_epoch(model, data_loader_train, optimizer, device, epoch, args=args) #loss_scaler, criterion
-        print(f"Loss / BCE on {len(dataset_train)} train samples: {train_stats['loss']:.4f}")
+        mean_loss_epoch_train = train_one_epoch(model, data_loader_train, optimizer, device, epoch, args=args) #loss_scaler, criterion
+        print(f"Loss / BCE on {len(dataset_train)} train samples: {mean_loss_epoch_train}")
 
-    # if args.output_dir and (epoch % 100 == 0 or epoch + 1 == args.epochs):
-    #     misc.save_model(
-    #         args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-    #         loss_scaler=loss_scaler, epoch=epoch)
-
-        val_stats, test_history = evaluate(data_loader_val, model, device, epoch, args=args) # log_writer=log_writer, args=args)
-    # print(f"Loss / Normalized CC of the network on the {len(dataset_val)} val images: {val_stats['loss']:.4f}\
-    #     / {val_stats['acc']:.2f}")
-        print(f"Loss / BCE on {len(dataset_val)} val samples: {val_stats['loss']:.4f}")
+        mean_loss_epoch_val = evaluate(model, data_loader_val, device, epoch, args=args) 
+        print(f"Loss / BCE on {len(dataset_val)} val samples: {mean_loss_epoch_val}")
     
+        
+        # # wandb
+        # if args.wandb == True:
+        #     test_history['epoch'] = epoch
+        #     test_history['val_loss'] =mean_loss_epoch_train 
 
-    # best_stats['loss'] = min(best_stats['loss'], val_stats['loss'])
-    # best_stats['acc'] = max(best_stats['acc'], val_stats['acc'])
-    
-        if early_stop.evaluate_decreasing_metric(val_metric=val_stats[eval_criterion]):
-            break
 
-    # if eval_criterion == "loss":
-    #     if early_stop.evaluate_decreasing_metric(val_metric=val_stats[eval_criterion]):
-    #         break
-    #     if args.output_dir and val_stats[eval_criterion] <= max(best_eval_scores['eval_criterion']):
-    #         # save the best 5 (nb_ckpts_max) checkpoints, even if they appear after the best checkpoint wrt time
-    #         if best_eval_scores['count'] < best_eval_scores['nb_ckpts_max']:
-    #             best_eval_scores['count'] += 1
-    #         else:
-    #             best_eval_scores['eval_criterion'] = sorted(best_eval_scores['eval_criterion'])
-    #             best_eval_scores['eval_criterion'].pop()
-    #         best_eval_scores['eval_criterion'].append(val_stats[eval_criterion])
 
-    #         # misc.save_best_model(
-    #         #     args=args, model=model, model_without_ddp=model, optimizer=optimizer,
-    #         #     loss_scaler=loss_scaler, 
-    #         #     epoch=epoch, test_stats=val_stats, evaluation_criterion=eval_criterion, 
-    #         #     mode="decreasing")
-    # else:
-    #     if early_stop.evaluate_increasing_metric(val_metric=val_stats[eval_criterion]):
-    #         break
-        # # if args.output_dir and 
-        # if val_stats[eval_criterion] >= min(best_eval_scores['eval_criterion']):
-        #     # save the best 5 (nb_ckpts_max) checkpoints, even if they appear after the best checkpoint wrt time
-        #     if best_eval_scores['count'] < best_eval_scores['nb_ckpts_max']:
-        #         best_eval_scores['count'] += 1
-        #     else:
-        #         best_eval_scores['eval_criterion'] = sorted(best_eval_scores['eval_criterion'], reverse=True)
-        #         best_eval_scores['eval_criterion'].pop()
-        #     best_eval_scores['eval_criterion'].append(val_stats[eval_criterion])
-
-            # misc.save_best_model(
-            #     args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-            #     loss_scaler=loss_scaler, epoch=epoch, test_stats=val_stats, evaluation_criterion=eval_criterion, 
-            #     mode="increasing")
-            
-    # if args.output_dir and misc.is_main_process():
-    #     with open(os.path.join(args.output_dir, "log.txt"), mode="a", encoding="utf-8") as f:
-    #         f.write(json.dumps(log_stats) + "\n")
-
-    total_time = time.time() - start_time
-    if args.wandb:
-        wandb.log(train_history | test_history | {"Time per epoch [sec]": total_time})
+    # total_time = time.time() - start_time
+    # if args.wandb:
+    #     wandb.log(train_history | test_history | {"Time per epoch [sec]": total_time})
 
             
+    # ------
+
     # argparser = argpars()
 
     # optimizer = None
@@ -300,8 +253,8 @@ def main(args):
 if __name__ == "__main__":
     args = get_args_parser()
     args = args.parse_args()
-    if args.output_dir:
-        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    # if args.output_dir:
+    #     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
 
 
@@ -333,198 +286,3 @@ if __name__ == "__main__":
 
 
 
-
-
-# # %%
-# def train_model_wandb(model, train_loader, val_loader, h_params, device, config=None):
-    
-#     with wandb.init(config=config):
-#         run = wandb.init(
-#             project="classifing-eeg", 
-#             config={
-#                 "learning_rate": h_params["lr"], 
-#                 "epochs": h_params["num_epochs"], 
-#                 "batch_size": h_params["batch_size"], 
-#             },
-#         )   
-#         config = wandb.config
-#         loader = build_dataset(config.batch_size)
-#         network = build_network(config.fc_layer_size, config.dropout)
-#         optimizer = build_optimizer(network, config.optimizer, config.learning_rate)
-
-#         for epoch in range(config.epochs):
-
-#     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#     print(device)
-
-#     criterion = nn.BCELoss()  
-#     optimizer = optim.AdamW(model.parameters(), lr=h_params["lr"])
-
-#     for epoch in range(h_params["num_epochs"]): 
-#         model.train()
-#         train_running_loss = 0.0
-#         counter = 0
-        
-#         for i, (X,y) in enumerate(train_loader):
-#             X, y = X.to(device), y.to(device)
-            
-#             optimizer.zero_grad()
-            
-#             outputs = model(X)
-#             loss = criterion(outputs, y)
-            
-#             loss.backward()
-#             optimizer.step()
-            
-#             train_running_loss += loss.item() 
-#             #np.sqrt(loss.item()) 
-            
-#             counter += 1
-
-#         wandb.log({"train_loss_accumulating": train_running_loss}) 
-
-            
-
-#         # wandb.log({"train_loss_accumulating": train_running_loss/len(train_loader)}) 
-
-#         # writer.add_scalar('Loss_in_years/train', train_running_loss, epoch * len(train_loader) + i)
-
-#         avg_train_loss = train_running_loss/counter
-#         train_acc = 1-avg_train_loss # Is that correct? 
-
-#         # if epoch % rate_of_updates == 0: 
-#         #     print(f'Fold {fold+1}, Epoch [{epoch+1}/{h_params["num_epochs"]}], Train Loss: {avg_train_loss:.4f}')
-        
-#         # print(f'Fold {fold+1}, Epoch [{epoch+1}/{h_params["num_epochs"]}], Train Loss: {avg_train_loss:.4f}')
-
-
-#         # Validation phase
-#         model.eval()
-#         val_running_loss = 0.0
-#         counter = 0 
-        
-#         with torch.no_grad():
-#             for i, (X,y) in enumerate(val_loader):
-#                 X, y = X.to(device), y.to(device)
-                
-#                 outputs = model(X)
-#                 val_loss = criterion(outputs, y)
-                
-#                 val_running_loss += val_loss.item() 
-#                 # np.sqrt(val_loss.item())
-
-#                 # avg_val_loss = val_running_loss / len(val_loader)
-#                 # writer.add_scalar('Loss_in_years/val', np.sqrt(val_loss.item()), epoch * len(val_loader) + i)
-
-#                 counter += 1
-
-#         wandb.log({"val_loss_accumulating": val_running_loss}) 
-
-
-
-#         avg_val_loss = val_running_loss / counter # len(val_loader)
-#         val_acc = 1 - avg_val_loss
-        
-#         print(f'Epoch [{epoch+1}/{h_params["num_epochs"]}], Validation Loss: {avg_val_loss:.4f}') #Fold {fold+1}
-#         wandb.log({"train_accuracy": train_acc, "val_accuracy": val_acc, "train_loss": avg_train_loss, "val_loss": avg_val_loss})
-
-
-#     # Log fold results
-#     # fold_results.append(avg_val_loss)
-
-
-
-
-
-
-
-
-
-# # %% TRYING WANDB SWEEPS
-# def train_model(model, train_loader, val_loader, h_params, device):
-#     run = wandb.init(
-#         project="classifing-eeg", 
-#         config={
-#             "learning_rate": h_params["lr"], 
-#             "epochs": h_params["num_epochs"], 
-#             "batch_size": h_params["batch_size"], 
-#         },
-#     )   
-
-#     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#     print(device)
-
-#     criterion = nn.BCELoss()  
-#     optimizer = optim.AdamW(model.parameters(), lr=h_params["lr"])
-
-#     for epoch in range(h_params["num_epochs"]): 
-#         model.train()
-#         train_running_loss = 0.0
-#         counter = 0
-        
-#         for i, (X,y) in enumerate(train_loader):
-#             X, y = X.to(device), y.to(device)
-            
-#             optimizer.zero_grad()
-            
-#             outputs = model(X)
-#             loss = criterion(outputs, y)
-            
-#             loss.backward()
-#             optimizer.step()
-            
-#             train_running_loss += loss.item() 
-#             #np.sqrt(loss.item()) 
-            
-#             counter += 1
-
-#         wandb.log({"train_loss_accumulating": train_running_loss}) 
-
-            
-
-#         # wandb.log({"train_loss_accumulating": train_running_loss/len(train_loader)}) 
-
-#         # writer.add_scalar('Loss_in_years/train', train_running_loss, epoch * len(train_loader) + i)
-
-#         avg_train_loss = train_running_loss/counter
-#         train_acc = 1-avg_train_loss # Is that correct? 
-
-#         # if epoch % rate_of_updates == 0: 
-#         #     print(f'Fold {fold+1}, Epoch [{epoch+1}/{h_params["num_epochs"]}], Train Loss: {avg_train_loss:.4f}')
-        
-#         # print(f'Fold {fold+1}, Epoch [{epoch+1}/{h_params["num_epochs"]}], Train Loss: {avg_train_loss:.4f}')
-
-
-#         # Validation phase
-#         model.eval()
-#         val_running_loss = 0.0
-#         counter = 0 
-        
-#         with torch.no_grad():
-#             for i, (X,y) in enumerate(val_loader):
-#                 X, y = X.to(device), y.to(device)
-                
-#                 outputs = model(X)
-#                 val_loss = criterion(outputs, y)
-                
-#                 val_running_loss += val_loss.item() 
-#                 # np.sqrt(val_loss.item())
-
-#                 # avg_val_loss = val_running_loss / len(val_loader)
-#                 # writer.add_scalar('Loss_in_years/val', np.sqrt(val_loss.item()), epoch * len(val_loader) + i)
-
-#                 counter += 1
-
-#         wandb.log({"val_loss_accumulating": val_running_loss}) 
-
-
-
-#         avg_val_loss = val_running_loss / counter # len(val_loader)
-#         val_acc = 1 - avg_val_loss
-        
-#         print(f'Epoch [{epoch+1}/{h_params["num_epochs"]}], Validation Loss: {avg_val_loss:.4f}') #Fold {fold+1}
-#         wandb.log({"train_accuracy": train_acc, "val_accuracy": val_acc, "train_loss": avg_train_loss, "val_loss": avg_val_loss})
-
-
-#     # Log fold results
-#     # fold_results.append(avg_val_loss)
