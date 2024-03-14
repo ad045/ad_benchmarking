@@ -63,7 +63,7 @@ class InspiredEEGNet(nn.Module): # inspired by Shallow ConvNet model from Schirr
 
 
 class ShallowConvNet(nn.Module): # inspired by Shallow ConvNet model from Schirrmeister et al 2017.
-    def __init__(self, n_channels, n_classes, input_time_length, n_filters=40, filter_time_length=25, pool_time_length=75, pool_time_stride=15, drop_prob=0.5):
+    def __init__(self, n_channels, input_time_length, n_classes=1, n_filters=40, filter_time_length=25, pool_time_length=75, pool_time_stride=15): #, drop_prob=0.5):
         super(ShallowConvNet, self).__init__()
         
         self.temporal_conv = nn.Conv2d(n_channels, n_filters, (1, filter_time_length), padding='valid') # same')
@@ -90,6 +90,25 @@ class ShallowConvNet(nn.Module): # inspired by Shallow ConvNet model from Schirr
         x = self.final_activation(x)
         return x 
 
+
+
+def first_simple_classifier(**kwargs): 
+    model = SimpleClassifierNN(
+        input_size=61*100, hidden_size1=4096, hidden_size2=128
+    )
+    return model 
+
+
+def first_shallow_conv_net(**kwargs): 
+    model = ShallowConvNet(n_channels=61, n_classes=1, 
+        input_time_length=100, n_filters=40, filter_time_length=25, 
+        pool_time_length=75, pool_time_stride=15)
+    
+    return model
+
+# set recommended archs
+simple_classifier = first_simple_classifier
+shallow_conv_net = first_shallow_conv_net
 
 
 # class SimpleNN(nn.Module):
