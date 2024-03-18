@@ -66,43 +66,60 @@ class InspiredEEGNet(nn.Module): # Schirrmeister et al 2017.
 class DeepConvNet(nn.Module): # Schirrmeister et al 2017.
     def __init__(self, n_channels, input_time_length, n_classes=1):
     
-        super(ShallowConvNet, self).__init__()
+        super(DeepConvNet, self).__init__()
         
         n_filters = 25
         filter_time_length = 10
-        pool_time_length = 3
-        pool_time_stride = 3
 
-        self.temporal_conv = nn.Conv2d(n_channels, n_filters, (1, filter_time_length), padding='valid') # same')
-        self.spatial_conv = nn.Conv2d(n_filters, n_filters, (n_channels, n_filters), padding='same') #, bias=False) 
-        self.pooling = nn.MaxPool2d((1, pool_time_length), stride=(pool_time_stride,1)) 
-        # self.log_nonlin = nn.LogSigmoid() # "A log non-linearity >> is this wat is meant by that? or a true log fctn?"
-        self.conv_2 = nn.Conv2d(n_filters, n_filters, (n_filters, 10), padding='valid') #same') #, bias=False) 
-        self.pool_2 = nn.MaxPool2d((1, pool_time_length), stride=(pool_time_stride,1)) 
+        self.temporal_conv = nn.Conv2d(n_channels, 25, (1, filter_time_length), padding='valid') # same')
+        self.spatial_conv = nn.Conv2d(25, 25, (n_channels, 25), padding='same') #, bias=False) 
+        # batchnorm, elu
+        self.pooling = nn.MaxPool2d((1, 3), stride=(3,1))
+
+        self.conv_2 = nn.Conv2d(25, 50, (10, 25), padding='valid') #same') #, bias=False) 
+        # batchnorm, elu
+        self.pool_2 = nn.MaxPool2d((1, 3), stride=(3,1)) 
         
-        self.conv_3 = nn.Conv2d(n_filters, n_filters, (n_channels, n_filters), padding='same') #, bias=False) 
-        self.pool_3 = nn.MaxPool2d((1, pool_time_length), stride=(pool_time_stride,1)) 
+        self.conv_3 = nn.Conv2d(50, 100, (10, 25), padding='valid') #, bias=False) 
+        # batchnorm, elu
+        self.pool_3 = nn.MaxPool2d((1, 3), stride=(3,1)) 
         
-        self.conv_4 = nn.Conv2d(n_filters, n_filters, (n_channels, n_filters), padding='same') #, bias=False) 
-        self.pool_4 = nn.MaxPool2d((1, pool_time_length), stride=(pool_time_stride,1)) 
+        self.conv_4 = nn.Conv2d(100, 200, (10, 100), padding='valid') #, bias=False) 
+        # batchnorm, elu
+        self.pool_4 = nn.MaxPool2d((1, 3), stride=(3,1)) 
         
         self.elu = nn.ELU()
-        
+        self.batch_norm = nn.BatchNorm2d()
+
         self.flatten = nn.Flatten() 
-        last_layer_time_length = int(((input_time_length-filter_time_length+1)-75+pool_time_stride+1)/pool_time_stride+1) # IS THAT CORRECT? 
-        self.linear_classification = nn.Linear(last_layer_time_length*40, n_classes)
+        # last_layer_time_length = int((int(input_time_length-10+1/2
+        # self.linear_classification = nn.Linear(last_layer_time_length*40, n_classes)
         self.final_activation = nn.Sigmoid() # in Braindecode Paper a Softmax
 
     def forward(self, x):
         x = x.unsqueeze(1).permute(0,2,1,3)
         x = self.temporal_conv(x)
         x = self.spatial_conv(x)  
-        x = torch.square(x) # ? 
+        x = self.batch_norm(x)
+        x = self.elu(x)
+        x = self.pooling(x) 
+        
+        x = self.conv_2(x)
+        x = self.batch_norm(x)
+        x = self.elu(x)
+        x = self.pool_2(x)
+    
+        x = self.conv_3(x)
+        x = self.batch_norm(x)
+        x = self.elu(x)
+        x = self.pool_3(x)
 
-        x = self.pooling(x)
+        x = self.conv_4(x)
+        x = self.batch_norm(x)
+        x = self.elu(x)
+        x = self.pool_4(x)
+
         x = self.flatten(x) 
-        x = torch.log(x)    # ?
-
         x = self.linear_classification(x)
         x = self.final_activation(x)
         return x 
@@ -122,10 +139,13 @@ class ShallowConvNet(nn.Module): # inspired by Shallow ConvNet model from Schirr
         self.linear_classification = nn.Linear(last_layer_time_length*40, n_classes)
         self.final_activation = nn.Sigmoid() # in Braindecode Paper a Softmax
 
+        self.batch_norm = nn.BatchNorm2d(40)
+
     def forward(self, x):
         x = x.unsqueeze(1).permute(0,2,1,3)
         x = self.temporal_conv(x)
         x = self.spatial_conv(x)  
+        x = self.batch_norm(x) # somewhere else, too? 
         x = torch.square(x) # ? 
 
         x = self.pooling(x)
@@ -134,6 +154,38 @@ class ShallowConvNet(nn.Module): # inspired by Shallow ConvNet model from Schirr
 
         x = self.linear_classification(x)
         x = self.final_activation(x)
+        return x 
+
+
+class ShallowConvNet_Regression(nn.Module): # inspired by Shallow ConvNet model from Schirrmeister et al 2017.
+    def __init__(self, n_channels, input_time_length, n_classes=1, n_filters=40, filter_time_length=25, pool_time_length=75, pool_time_stride=15): #, drop_prob=0.5):
+        super(ShallowConvNet, self).__init__()
+        
+        self.temporal_conv = nn.Conv2d(n_channels, n_filters, (1, filter_time_length), padding='valid') # same')
+        self.spatial_conv = nn.Conv2d(n_filters, n_filters, (n_channels, n_filters), padding='same') #, bias=False) 
+        # self.square_nonlin = 
+        self.pooling = nn.AvgPool2d((1, pool_time_length), stride=(pool_time_stride,1)) 
+        # self.log_nonlin = nn.LogSigmoid() # "A log non-linearity >> is this wat is meant by that? or a true log fctn?"
+        self.flatten = nn.Flatten() 
+        last_layer_time_length = int(((input_time_length-filter_time_length+1)-75+pool_time_stride+1)/pool_time_stride+1) # IS THAT CORRECT? 
+        self.linear_classification = nn.Linear(last_layer_time_length*40, n_classes)
+        self.final_activation = nn.Sigmoid() # in Braindecode Paper a Softmax
+
+        self.batch_norm = nn.BatchNorm2d(40)
+
+    def forward(self, x):
+        x = x.unsqueeze(1).permute(0,2,1,3)
+        x = self.temporal_conv(x)
+        x = self.spatial_conv(x)  
+        x = self.batch_norm(x) # somewhere else, too? 
+        x = torch.square(x) # ? 
+
+        x = self.pooling(x)
+        x = self.flatten(x) 
+        x = torch.log(x)    # ?
+
+        x = self.linear_classification(x)
+        # x = self.final_activation(x)
         return x 
 
 
@@ -149,6 +201,19 @@ def first_shallow_conv_net(**kwargs):
     model = ShallowConvNet(n_channels=61, n_classes=1, 
         input_time_length=100, n_filters=40, filter_time_length=25, 
         pool_time_length=75, pool_time_stride=15)
+    
+    return model
+
+def first_shallow_conv_net_regression(**kwargs): 
+    model = ShallowConvNet(n_channels=61, n_classes=1, 
+        input_time_length=100, n_filters=40, filter_time_length=25, 
+        pool_time_length=75, pool_time_stride=15)
+    
+    return model
+
+
+def deep_conv_net(**kwargs): 
+    model = DeepConvNet(n_channels=61, input_time_length=100, n_classes=1)
     
     return model
 

@@ -41,7 +41,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser("NN training")
 
     parser.add_argument('--batch_size', default=64, type=int)
-    parser.add_argument('--epochs', default=400, type=int)
+    parser.add_argument('--epochs', default=1000, type=int)
     parser.add_argument('--acum_iter', default=1, type=int) 
 
     parser.add_argument('--model', default='shallow_conv_net', type=str, metavar='MODEL',
@@ -60,7 +60,9 @@ def get_args_parser():
     # Optimizer parameters
     parser.add_argument('--optimizer', type=str, default="adam_w", 
                         help='optimizer type') 
-    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
+    parser.add_argument('--criterion', type=str, default="bce", 
+                        help='loss type') 
+    parser.add_argument('--lr', type=float, default=1e-2, metavar='LR',
                         help='learning rate') 
 
     # Callback parameters
@@ -68,6 +70,10 @@ def get_args_parser():
                         help='Early stopping whether val is worse than train for specified nb of epochs (default: -1, i.e. no early stopping)')
     parser.add_argument('--max_delta', default=0, type=float,
                         help='Early stopping threshold (val has to be worse than (train+delta)) (default: 0)')
+    parser.add_argument('--sufficient_accuracy', default=-np.inf, type=float,
+                        help='Sufficient accuracy that also leads to early stopping (default: -inf)')
+ 
+
 
 
     # Dataset parameters
@@ -92,7 +98,7 @@ def get_args_parser():
                         default="/vol/aimspace/users/dena/Documents/ad_benchmarking/ad_benchmarking/data/labels_bin_val.pt", # "labels_raw_val.pt"
                         type=str,
                         help='validation labels path')
-    parser.add_argument('--number_samples', default=1, type=int, # | str, 
+    parser.add_argument('--number_samples', default=4, type=int, # | str, 
                         help='number of samples on which network should train on. "None" means all samples.')
     parser.add_argument('--num_workers', default=4, type=int, # | str, 
                         help='number workers for dataloader.')
@@ -112,25 +118,8 @@ def get_args_parser():
     parser.add_argument('--output_dir', default='',
                         help='path where to save, empty for no saving')
     
-    # parser.add_argument('--mode', type=str, default="train")
-
     return parser
     
-
-
-
-# def build_optimizer(model, optimizer, learning_rate):
-#     if optimizer == "sgd":
-#         optimizer = optim.SGD(model.parameters(),
-#                               lr=learning_rate, momentum=0.9)
-#     elif optimizer == "adam":
-#         optimizer = optim.Adam(model.parameters(),
-#                                lr=learning_rate)
-#     if optimizer == "adamw": 
-#         optimizer = optim.AdamW(model.parameters(), lr=learning_rate) 
-
-#     return optimizer
-
 
 def main(args): 
 
@@ -164,7 +153,6 @@ def main(args):
     #         wandb.init(project=args.wandb_project, id=args.wandb_id, config=config)
     #     else:
     #         wandb.init(project=args.wandb_project, config=config)
-
     wandb.init(project=args.wandb_project, config=vars(args))
 
     data_loader_train = torch.utils.data.DataLoader(
@@ -195,102 +183,56 @@ def main(args):
     model.to(device)
 
     # eval_criterion = "bce"
-    # criterion = nn.BCELoss()  # !!!! 
-
     criterion = torch.nn.BCELoss() 
 
 
-    if optimizer == "sgd":
+    if args.optimizer == "sgd":
         optimizer = optim.SGD(model.parameters(),
                               lr=args.lr, momentum=0.9)
-    elif optimizer == "adam":
+    elif args.optimizer == "adam":
         optimizer = optim.Adam(model.parameters(),
                                lr=args.lr)
-    elif optimizer == "adamw": 
+    elif args.optimizer == "adamw": 
         optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.95))
 
     else: 
         print("Attention: No optimier chosen.")
 
     # Define callbacks
-    early_stop = EarlyStop(patience=args.patience, max_delta=args.max_delta)
+    # early_stop = EarlyStop(patience=args.patience, max_delta=args.max_delta)
 
     print(f"Start training for {args.epochs} epochs")
 
+    min_val_metric = np.inf
+    counter = 0 
 
     for epoch in range(args.epochs): 
-        # start_time = time.time()
         
         mean_loss_epoch_train = train_one_epoch(model, data_loader_train, optimizer, criterion, device, epoch, args=args) #loss_scaler, criterion
         print(f"Loss / BCE on {len(dataset_train)} train samples: {mean_loss_epoch_train}")
 
         mean_loss_epoch_val = evaluate(model, data_loader_val, criterion, device, epoch, args=args) 
         print(f"Loss / BCE on {len(dataset_val)} val samples: {mean_loss_epoch_val}")
+
+        # Early Stopping
+        if args.patience > -1: 
+            if mean_loss_epoch_val < min_val_metric: 
+                min_val_metric = mean_loss_epoch_val
+                counter == 0
+            elif mean_loss_epoch_val > min_val_metric: 
+                counter += 1
+                if counter > args.patience:
+                    print(f"stopped early at epoch {epoch}.")
+                    break 
+
+        wandb.log({"epoch: ", epoch})
+
     
-        
-        # # wandb
-        # if args.wandb == True:
-        #     test_history['epoch'] = epoch
-        #     test_history['val_loss'] =mean_loss_epoch_train 
-
-
-
-    # total_time = time.time() - start_time
-    # if args.wandb:
-    #     wandb.log(train_history | test_history | {"Time per epoch [sec]": total_time})
-
-            
-    # ------
-
-    # argparser = argpars()
-
-    # optimizer = None
-    # criterion = None # loss
-
-    # if mode== "train":
-    #     dataset = EEGDataset()
-    #     train_loader = Dataloader(dataset)
-
-    # model = None
-
-    # train_epoch(model, optimozer, criterion, dataloader)
-
 
 
 
 if __name__ == "__main__":
     args = get_args_parser()
     args = args.parse_args()
-    # if args.output_dir:
-    #     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
-
-
-
-
-
-# model = models.__dict__[args.model](n_channels = 61, n_classes = 1, input_time_length = 100, n_filters=40, filter_time_length=25, pool_time_length=75, pool_time_stride=15) #, drop_prob=0.5)
-
-# model = models.ShallowConvNet(n_channels = 61, n_classes = 1, input_time_length = 100, n_filters=40, filter_time_length=25, pool_time_length=75, pool_time_stride=15) #, drop_prob=0.5)
-# model.to(device)
-
-
-# cumu_loss = 0
-# for _, (data, target) in enumerate(loader):
-#     data, target = data.to(device), target.to(device)
-#     optimizer.zero_grad()
-
-#     # ➡ Forward pass
-#     loss = F.nll_loss(model(data), target)
-#     cumu_loss += loss.item()
-
-#     # ⬅ Backward pass + weight update
-#     loss.backward()
-#     optimizer.step()
-
-#     wandb.log({"batch loss": loss.item()})
-
-# return cumu_loss / len(loader)
-
-
 
