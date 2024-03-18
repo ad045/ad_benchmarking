@@ -19,7 +19,7 @@ from torch.utils.data import Dataset
 class EEGDataset(Dataset):
 
     def __init__(self, data_path, labels_path, # downstream_task=None, 
-                 train=False, number_samples=None, length_samples=100, args=None) -> None:
+                 train=False, number_samples=None, length_samples=100, scaled=True, args=None) -> None:
         """load data and labels from files"""
         
         # self.downstream_task = downstream_task # "classification"
@@ -30,7 +30,10 @@ class EEGDataset(Dataset):
 
         self.X = torch.load(data_path, map_location=torch.device('cpu')) # load to ram
         self.y = torch.load(labels_path, map_location=torch.device('cpu'))#[..., None] # load to ram
-
+        
+        if scaled:         
+            self.y = self.y/100 
+            
         # X, y, length_sample, number_samples=None):
 
         if number_samples:
@@ -84,3 +87,5 @@ class EEGDataset(Dataset):
 
         return data, label
     
+
+# %%

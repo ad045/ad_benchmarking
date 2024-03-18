@@ -136,6 +136,7 @@ def train_one_epoch(model: torch.nn.Module,
                     device: torch.device, epoch: int,
                     # loss_scaler,
                     # log_writer=None,
+                    scaled=True,
                     args=None):
     model.train(True)
 
@@ -151,10 +152,13 @@ def train_one_epoch(model: torch.nn.Module,
 
         # ➡ Forward pass
         output = model(data)
+
         loss = criterion(output, target)
-            
-            
-        cumu_loss += np.sqrt(loss.item())
+        
+        if scaled: 
+            cumu_loss += np.sqrt(loss.item())*100
+        else: 
+            cumu_loss += np.sqrt(loss.item())
 
         # ⬅ Backward pass + weight update
         loss.backward()
@@ -166,7 +170,7 @@ def train_one_epoch(model: torch.nn.Module,
 
 
 @torch.no_grad()
-def evaluate(model, data_loader, criterion, device, epoch, log_writer=None, args=None):
+def evaluate(model, data_loader, criterion, device, epoch, scaled=True, log_writer=None, args=None):
     model.eval()
 
     cumu_loss = 0
@@ -178,8 +182,13 @@ def evaluate(model, data_loader, criterion, device, epoch, log_writer=None, args
         output = model(data)
         loss = criterion(output, target)
        
-        print(f"Target: {target}, output: {output}")
-        cumu_loss += np.sqrt(loss.item())
+        # print(f"Target: {target}, output: {output}")
+
+        if scaled: 
+            cumu_loss += np.sqrt(loss.item())
+        else: 
+            cumu_loss += np.sqrt(loss.item())
+
     
     mean_bce_loss = cumu_loss/len(data_loader)
         

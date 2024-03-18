@@ -25,103 +25,81 @@ class SimpleClassifierNN(nn.Module):
         return x
 
 
-class InspiredEEGNet(nn.Module): # Schirrmeister et al 2017.
-    def __init__(self, n_channels, n_classes, input_time_length, n_filters=40, filter_time_length=25, pool_time_length=75, pool_time_stride=15, drop_prob=0.5):
-        super(InspiredEEGNet, self).__init__()
-        
-        self.temporal_conv = nn.Conv2d(n_channels, n_filters, (1, filter_time_length), padding='same')
-        self.batch_norm = nn.BatchNorm2d(n_filters)
-        # self.spatial_conv = nn.Conv2d(n_filters, n_filters, (n_channels, 1), bias=False) # assuming n_channels is the spatial dimension
-        self.spatial_conv = nn.Conv2d(n_filters, n_filters, (1, 1), bias=False) # assuming n_channels is the spatial dimension
-        # self.pooling = nn.AvgPool2d((1, pool_time_length), stride=(1, pool_time_stride) 
-        self.pooling = nn.AvgPool2d((1,2))# stride=(1,3)) #pool_stride_length, stride=pool_time_stride) #), ceil_mode=True)
-
-        self.dropout = nn.Dropout(drop_prob)
-        # Regression?/ Classifier convolutional layer, assuming the output from previous layer is flattened
-        self.classifier = nn.Conv2d(n_filters, n_classes, (1, input_time_length // pool_time_stride - pool_time_length // pool_time_stride + 1))
-        self.fully_connected_layer = nn.Linear(49, 1)
-
-    def forward(self, x):
-        x = x.permute(1,0,2)
-        x = F.relu(self.temporal_conv(x))
-        # x = self.batch_norm(x)
-        x = F.relu(self.spatial_conv(x))        
-        x = self.pooling(x)
-        x = self.dropout(x)
-        x = self.classifier(x)
-        # Flatten the output for classification
-        
-        print(torch.permute(x, (1,0,2)).flatten(start_dim=1).shape)
-        x = torch.permute(x, (1,0,2)).flatten(start_dim=1)
-        # x = x.flatten(1,-1)
-        # x = x.squeeze(3).mean(2)
-        print(x.shape)
-        x = self.fully_connected_layer(x)
-
-
-        return F.log_softmax(x, dim=1) # x
 
 
 
 class DeepConvNet(nn.Module): # Schirrmeister et al 2017.
-    def __init__(self, n_channels, input_time_length, n_classes=1):
-    
+    def __init__(self, n_channels=1, input_time_length=100, n_classes=1):
+        #n-channels is useless! Replace it! 
         super(DeepConvNet, self).__init__()
         
         n_filters = 25
         filter_time_length = 10
 
-        self.temporal_conv = nn.Conv2d(n_channels, 25, (1, filter_time_length), padding='valid') # same')
-        self.spatial_conv = nn.Conv2d(25, 25, (n_channels, 25), padding='same') #, bias=False) 
+        self.temporal_conv = nn.Conv2d(1, 25, (1, filter_time_length), padding='valid') # same')
+        self.spatial_conv = nn.Conv2d(25, 25, (61, 1), padding='valid') #, bias=False) 
         # batchnorm, elu
+        self.batch_norm1 = nn.BatchNorm2d(25)
         self.pooling = nn.MaxPool2d((1, 3), stride=(3,1))
 
-        self.conv_2 = nn.Conv2d(25, 50, (10, 25), padding='valid') #same') #, bias=False) 
+        self.conv_2 = nn.Conv2d(25, 50, (1, 10), padding='valid') #same') #, bias=False) 
         # batchnorm, elu
+        self.batch_norm2 = nn.BatchNorm2d(50)
         self.pool_2 = nn.MaxPool2d((1, 3), stride=(3,1)) 
         
-        self.conv_3 = nn.Conv2d(50, 100, (10, 25), padding='valid') #, bias=False) 
+        self.conv_3 = nn.Conv2d(50, 100, (1, 10), padding='valid') #, bias=False) 
+        self.batch_norm3 = nn.BatchNorm2d(100)
         # batchnorm, elu
         self.pool_3 = nn.MaxPool2d((1, 3), stride=(3,1)) 
         
-        self.conv_4 = nn.Conv2d(100, 200, (10, 100), padding='valid') #, bias=False) 
+        self.conv_4 = nn.Conv2d(100, 200, (1, 10), padding='valid') #, bias=False) 
+        self.batch_norm4 = nn.BatchNorm2d(200)
         # batchnorm, elu
         self.pool_4 = nn.MaxPool2d((1, 3), stride=(3,1)) 
         
         self.elu = nn.ELU()
-        self.batch_norm = nn.BatchNorm2d()
+        # self.batch_norm = nn.BatchNorm2d()
 
         self.flatten = nn.Flatten() 
         # last_layer_time_length = int((int(input_time_length-10+1/2
         # self.linear_classification = nn.Linear(last_layer_time_length*40, n_classes)
-        self.final_activation = nn.Sigmoid() # in Braindecode Paper a Softmax
+        # self.final_activation = nn.Sigmoid() # in Braindecode Paper a Softmax
+
+        self.linear_classification = nn.Linear(33200, 1)
+
 
     def forward(self, x):
-        x = x.unsqueeze(1).permute(0,2,1,3)
+        x = x.unsqueeze(1).permute(0,1,2,3)
         x = self.temporal_conv(x)
         x = self.spatial_conv(x)  
-        x = self.batch_norm(x)
+
+        x = self.batch_norm1(x)
         x = self.elu(x)
         x = self.pooling(x) 
-        
+
         x = self.conv_2(x)
-        x = self.batch_norm(x)
+        x = self.batch_norm2(x)
         x = self.elu(x)
         x = self.pool_2(x)
-    
+
         x = self.conv_3(x)
-        x = self.batch_norm(x)
+
+
+        x = self.batch_norm3(x)
         x = self.elu(x)
         x = self.pool_3(x)
 
         x = self.conv_4(x)
-        x = self.batch_norm(x)
+
+        x = self.batch_norm4(x)
         x = self.elu(x)
+
         x = self.pool_4(x)
 
         x = self.flatten(x) 
+
         x = self.linear_classification(x)
-        x = self.final_activation(x)
+        # # x = self.final_activation(x)
         return x 
     
 
