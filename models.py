@@ -25,6 +25,27 @@ class SimpleClassifierNN(nn.Module):
         return x
 
 
+class SimpleRegressorNN(nn.Module):
+    def __init__(self, input_size, hidden_size1, hidden_size2):
+
+        super().__init__()
+
+        self.flatten = nn.Flatten() 
+        self.fc1 = nn.Linear(input_size, hidden_size1)  # First hidden layer; Input size is 61*2000 since we flatten the cropped tensor
+        self.fc2 = nn.Linear(hidden_size1, hidden_size2) 
+        self.fc3 = nn.Linear(hidden_size2, 1)  # Output layer for regression
+        self.activation = nn.ReLU()
+        # self.final_activation = nn.Sigmoid()
+
+    def forward(self, x):
+        x = self.flatten(x)
+        x = self.fc1(x)
+        x = self.activation(x)
+        x = self.fc2(x)
+        x = self.activation(x)
+        x = self.fc3(x)
+        # x = self.final_activation(x)
+        return x
 
 
 
@@ -104,7 +125,7 @@ class DeepConvNet(nn.Module): # Schirrmeister et al 2017.
     
 
 class ShallowConvNet(nn.Module): # inspired by Shallow ConvNet model from Schirrmeister et al 2017.
-    def __init__(self, n_channels, input_time_length, n_classes=1, n_filters=40, filter_time_length=25, pool_time_length=75, pool_time_stride=15): #, drop_prob=0.5):
+    def __init__(self, n_channels, input_time_length, n_classes=20, n_filters=40, filter_time_length=25, pool_time_length=75, pool_time_stride=15): #, drop_prob=0.5):
         super(ShallowConvNet, self).__init__()
         
         self.temporal_conv = nn.Conv2d(n_channels, n_filters, (1, filter_time_length), padding='valid') # same')
@@ -115,7 +136,7 @@ class ShallowConvNet(nn.Module): # inspired by Shallow ConvNet model from Schirr
         self.flatten = nn.Flatten() 
         last_layer_time_length = int(((input_time_length-filter_time_length+1)-75+pool_time_stride+1)/pool_time_stride+1) # IS THAT CORRECT? 
         self.linear_classification = nn.Linear(last_layer_time_length*40, n_classes)
-        self.final_activation = nn.Sigmoid() # in Braindecode Paper a Softmax
+        self.final_activation = nn.Softmax() # in Braindecode Paper a Softmax
 
         self.batch_norm = nn.BatchNorm2d(40)
 
@@ -137,7 +158,7 @@ class ShallowConvNet(nn.Module): # inspired by Shallow ConvNet model from Schirr
 
 class ShallowConvNet_Regression(nn.Module): # inspired by Shallow ConvNet model from Schirrmeister et al 2017.
     def __init__(self, n_channels, input_time_length, n_classes=1, n_filters=40, filter_time_length=25, pool_time_length=75, pool_time_stride=15): #, drop_prob=0.5):
-        super(ShallowConvNet, self).__init__()
+        super(ShallowConvNet_Regression, self).__init__()
         
         self.temporal_conv = nn.Conv2d(n_channels, n_filters, (1, filter_time_length), padding='valid') # same')
         self.spatial_conv = nn.Conv2d(n_filters, n_filters, (n_channels, n_filters), padding='same') #, bias=False) 
@@ -175,19 +196,25 @@ def first_simple_classifier(**kwargs):
     return model 
 
 
-def first_shallow_conv_net(**kwargs): 
-    model = ShallowConvNet(n_channels=61, n_classes=1, 
+def shallow_net_20_classes(**kwargs): 
+    model = ShallowConvNet(n_channels=61, n_classes=10, 
         input_time_length=100, n_filters=40, filter_time_length=25, 
         pool_time_length=75, pool_time_stride=15)
     
     return model
 
 def first_shallow_conv_net_regression(**kwargs): 
-    model = ShallowConvNet(n_channels=61, n_classes=1, 
+    model = ShallowConvNet_Regression(n_channels=61, n_classes=1, 
         input_time_length=100, n_filters=40, filter_time_length=25, 
         pool_time_length=75, pool_time_stride=15)
     
     return model
+
+def first_simple_regressor(**kwargs): 
+    model = SimpleRegressorNN(
+        input_size=61*100, hidden_size1=4096, hidden_size2=128
+    )
+    return model 
 
 
 def deep_conv_net(**kwargs): 
@@ -197,8 +224,10 @@ def deep_conv_net(**kwargs):
 
 # set recommended archs
 simple_classifier = first_simple_classifier
-shallow_conv_net = first_shallow_conv_net
 
+shallow_conv_net = shallow_net_20_classes
+
+simple_regressor = first_simple_regressor
 
 # class SimpleNN(nn.Module):
 #     def __init__(self, activation=nn.Sigmoid(),

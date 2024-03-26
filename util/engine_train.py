@@ -151,14 +151,15 @@ def train_one_epoch(model: torch.nn.Module,
         optimizer.zero_grad()
 
         # ➡ Forward pass
+        print(data[0][0][0])
         output = model(data)
 
         loss = criterion(output, target)
         
-        if scaled: 
-            cumu_loss += np.sqrt(loss.item())*100
-        else: 
-            cumu_loss += np.sqrt(loss.item())
+        # if scaled: 
+        #     cumu_loss += np.sqrt(loss.item())
+        # else: 
+        cumu_loss += np.sqrt(loss.item())
 
         # ⬅ Backward pass + weight update
         loss.backward()

@@ -19,7 +19,7 @@ from torch.utils.data import Dataset
 class EEGDataset(Dataset):
 
     def __init__(self, data_path, labels_path, # downstream_task=None, 
-                 train=False, number_samples=None, length_samples=100, scaled=True, args=None) -> None:
+                 train=False, number_samples=None, length_samples=100, scaled=True, overfitting=False, args=None) -> None:
         """load data and labels from files"""
         
         # self.downstream_task = downstream_task # "classification"
@@ -27,6 +27,7 @@ class EEGDataset(Dataset):
         self.train = train 
         self.args = args
         self.number_samples = number_samples
+        self.overfitting = overfitting
 
         self.X = torch.load(data_path, map_location=torch.device('cpu')) # load to ram
         self.y = torch.load(labels_path, map_location=torch.device('cpu'))#[..., None] # load to ram
@@ -39,6 +40,8 @@ class EEGDataset(Dataset):
         if number_samples:
             indices = [i for i in range(number_samples)] #np.random.randint(0, number_samples) #.choice(range(len(X[0])), number_samples, replace=False)
             np.random.shuffle(indices) 
+            print("Sample indices:")
+            print(indices)
             # indices = range(number_samples) #np.random.randint(0, number_samples) #.choice(range(len(X[0])), number_samples, replace=False)
             # indices.shuffle() 
             self.X = self.X[indices]
@@ -58,6 +61,10 @@ class EEGDataset(Dataset):
         # get random starting point
         last_useful_index = self.X.shape[-1]-self.length_samples
         index = np.random.randint(0,last_useful_index)
+
+        if self.overfitting: 
+            #### ATTENTION! FOR OVERFITTING!! 
+            index = 0
 
         # get 2000 timesteps long data 
         data = self.X[idx][:,index:index+self.length_samples]

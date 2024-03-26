@@ -180,23 +180,34 @@ def main(args):
         input_time_length=args.time_steps, 
     )
 
+    
     model.to(device)
 
     # eval_criterion = "bce"
-    criterion = torch.nn.BCELoss() 
+    if args.criterion == "bce": 
+        criterion = torch.nn.BCELoss() # For classification
+
+    elif args.criterion == "mae": 
+        criterion = torch.nn.L1Loss() # For regression 
+
+    elif args.criterion == "mse": 
+        criterion = torch.nn.MSELoss() # For regression 
+
 
 
     if args.optimizer == "sgd":
         optimizer = optim.SGD(model.parameters(),
-                              lr=args.lr, momentum=0.9)
+                                lr=args.lr, momentum=0.9)
     elif args.optimizer == "adam":
         optimizer = optim.Adam(model.parameters(),
-                               lr=args.lr)
+                                lr=args.lr)
     elif args.optimizer == "adamw": 
         optimizer = optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.95))
 
     else: 
         print("Attention: No optimier chosen.")
+
+
 
     # Define callbacks
     # early_stop = EarlyStop(patience=args.patience, max_delta=args.max_delta)
