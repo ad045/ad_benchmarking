@@ -48,7 +48,6 @@ class SimpleRegressorNN(nn.Module):
         return x
 
 
-
 class DeepConvNet(nn.Module): # Schirrmeister et al 2017.
     def __init__(self, n_channels=1, input_time_length=100, n_classes=1):
         #n-channels is useless! Replace it! 
@@ -135,7 +134,7 @@ class ShallowConvNet(nn.Module): # inspired by Shallow ConvNet model from Schirr
         # self.log_nonlin = nn.LogSigmoid() # "A log non-linearity >> is this wat is meant by that? or a true log fctn?"
         self.flatten = nn.Flatten() 
         last_layer_time_length = int(((input_time_length-filter_time_length+1)-75+pool_time_stride+1)/pool_time_stride+1) # IS THAT CORRECT? 
-        self.linear_classification = nn.Linear(last_layer_time_length*40, n_classes)
+        self.linear_classification = nn.Linear(4480, 20) # last_layer_time_length*40, n_classes)
         self.final_activation = nn.Softmax() # in Braindecode Paper a Softmax
 
         self.batch_norm = nn.BatchNorm2d(40)
@@ -150,9 +149,10 @@ class ShallowConvNet(nn.Module): # inspired by Shallow ConvNet model from Schirr
         x = self.pooling(x)
         x = self.flatten(x) 
         x = torch.log(x)    # ?
-
+        
         x = self.linear_classification(x)
         x = self.final_activation(x)
+        
         return x 
 
 

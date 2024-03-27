@@ -183,6 +183,7 @@ def main(args):
     
     model.to(device)
 
+    
     # eval_criterion = "bce"
     if args.criterion == "bce": 
         criterion = torch.nn.BCELoss() # For classification
@@ -192,6 +193,10 @@ def main(args):
 
     elif args.criterion == "mse": 
         criterion = torch.nn.MSELoss() # For regression 
+
+    elif args.criterion == "ce": 
+        criterion = torch.nn.CrossEntropyLoss() # For classification
+    
 
 
 

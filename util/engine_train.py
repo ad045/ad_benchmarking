@@ -126,9 +126,6 @@ import matplotlib.pyplot as plt
 
 
 
-
-## FOR REGRESSION
-
 def train_one_epoch(model: torch.nn.Module,
                     data_loader: Iterable, 
                     optimizer: torch.optim.Optimizer, 
@@ -138,43 +135,44 @@ def train_one_epoch(model: torch.nn.Module,
                     # log_writer=None,
                     scaled=True,
                     args=None):
+    
     model.train(True)
-
-    # accum_iter = args.accum_iter
-
     optimizer.zero_grad()
-
-    cumu_loss = 0
+    running_loss = 0.0
+    correct = 0 
+    total = 0 
 
     for _, (data, target) in enumerate(data_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
 
         # ➡ Forward pass
-        print(data[0][0][0])
         output = model(data)
-
         loss = criterion(output, target)
-        
-        # if scaled: 
-        #     cumu_loss += np.sqrt(loss.item())
-        # else: 
-        cumu_loss += np.sqrt(loss.item())
 
         # ⬅ Backward pass + weight update
         loss.backward()
         optimizer.step()
+
+        running_loss += loss.item()
+        _, predicted = torch.max(output, 1)
+        _, target_index = torch.max(target, 1)
+        total += target.size(0) 
+        correct += (predicted == target_index).sum().item()
+
+    train_loss = running_loss / len(data_loader)
+    train_acc = correct / total
         
-    mean_bce_loss = cumu_loss/len(data_loader)
-        
-    return mean_bce_loss 
+    return train_loss, train_acc
 
 
 @torch.no_grad()
-def evaluate(model, data_loader, criterion, device, epoch, scaled=True, log_writer=None, args=None):
+def evaluate(model, data_loader, criterion, device, args=None): #, epoch, scaled=True, log_writer=None, args=None):
+    
     model.eval()
-
-    cumu_loss = 0
+    running_loss = 0.0
+    correct = 0 
+    total = 0 
 
     for _, (data, target) in enumerate(data_loader):
         data, target = data.to(device), target.to(device)
@@ -185,12 +183,16 @@ def evaluate(model, data_loader, criterion, device, epoch, scaled=True, log_writ
        
         # print(f"Target: {target}, output: {output}")
 
-        if scaled: 
-            cumu_loss += np.sqrt(loss.item())
-        else: 
-            cumu_loss += np.sqrt(loss.item())
+        running_loss += loss.item()
 
-    
-    mean_bce_loss = cumu_loss/len(data_loader)
+        _, predicted = torch.max(output, 1)
+        _, target_index = torch.max(target, 1)
+
+        total += target.size(0) 
+        correct += (predicted == target_index).sum().item()
+
+    val_loss = running_loss / len(data_loader)
+    val_acc = correct / total
         
-    return target, output, mean_bce_loss #, mean_mae_loss
+    return val_loss, val_acc
+    
